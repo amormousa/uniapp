@@ -35,7 +35,6 @@
   --radius2:    24px;
   --font:       'Cairo', system-ui, sans-serif;
   --mono:       'IBM Plex Mono', monospace;
-  --sidebar-w: 260px;
   --nav-h:      68px;
 }
 
@@ -58,78 +57,132 @@ body {
   opacity: 0.6;
 }
 
-/* ═══════════════════════ TOPBAR ═══════════════════════ */
+/* ═══════════════════════ TOPBAR — FIXED ═══════════════════════ */
+/*
+  ROOT CAUSE OF ORIGINAL BUG:
+  ─────────────────────────────────────────────────────────────────
+  The HTML has dir="rtl", so flex items flow RIGHT → LEFT.
+  The original `.topbar-nav { margin-right: auto }` means
+  "push the nav's right (= start in RTL) edge away from the logo",
+  which shoves the nav all the way left and strands the badges
+  at the far-left corner — exactly what the screenshot showed.
+
+  FIX:
+  1. Give the logo a fixed, shrunken slot (flex-shrink:0 + max-width).
+  2. Give the nav `flex: 1; min-width: 0` so it fills remaining space
+     and can shrink below its content width without forcing overflow.
+  3. Give the badges `flex-shrink: 0` so they never collapse.
+  4. Remove ALL `margin-*: auto` from the nav.
+  5. Add a hamburger toggle for mobile (≤ 768 px) so nothing is clipped.
+  ─────────────────────────────────────────────────────────────────
+*/
 .topbar {
   position: fixed;
   top: 0; left: 0; right: 0;
   height: var(--nav-h);
   z-index: 100;
-  background: rgba(5,13,31,0.85);
+  background: rgba(5,13,31,0.92);
   backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
   border-bottom: 1px solid var(--border);
   display: flex;
   align-items: center;
-  padding: 0 32px;
-  gap: 20px;
+  /* 
+    Use logical padding so it's direction-aware.
+    padding-inline = padding-right + padding-left in RTL.
+  */
+  padding: 0 20px;
+  gap: 8px;
+  overflow: hidden; /* never let topbar itself overflow */
 }
 
+/* ── Logo ── */
 .topbar-logo {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   text-decoration: none;
-  flex-shrink: 0;
+  flex-shrink: 0;           /* never squish the logo */
+  min-width: 0;             /* allow text to truncate if truly needed */
 }
 
 .logo-icon {
-  width: 40px; height: 40px;
+  width: 38px; height: 38px;
   background: linear-gradient(135deg, var(--blue), var(--cyan));
   border-radius: 10px;
   display: flex; align-items: center; justify-content: center;
-  font-size: 20px;
+  font-size: 18px;
   box-shadow: 0 0 20px rgba(26,107,224,0.5);
   flex-shrink: 0;
 }
 
 .logo-text {
-  font-size: 18px;
+  font-size: 16px;
   font-weight: 700;
   color: var(--text);
   line-height: 1.2;
+  white-space: nowrap;
 }
 
 .logo-sub {
-  font-size: 11px;
+  font-size: 10px;
   color: var(--cyan);
   font-weight: 400;
   letter-spacing: 0.5px;
+  white-space: nowrap;
 }
 
+/* ── Nav wrapper — KEY FIX ── */
 .topbar-nav {
+  flex: 1;              /* fill all remaining space between logo and badges */
+  min-width: 0;         /* allow flex child to shrink below content size    */
   display: flex;
-  gap: 4px;
-  margin-right: auto;
-  overflow-x: auto;
+  align-items: center;
+  gap: 2px;
+  overflow-x: auto;     /* scroll horizontally on small screens            */
+  overflow-y: hidden;
   scrollbar-width: none;
+  -ms-overflow-style: none;
+  padding: 4px 6px;
+  /* NO margin-right / margin-left auto here — that was the bug */
 }
 
 .topbar-nav::-webkit-scrollbar { display: none; }
+
+/* Fade edges to hint at scrollability */
+.topbar-nav {
+  -webkit-mask-image: linear-gradient(
+    to left,
+    transparent 0%,
+    black 5%,
+    black 95%,
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to left,
+    transparent 0%,
+    black 5%,
+    black 95%,
+    transparent 100%
+  );
+}
 
 .tnav-btn {
   background: transparent;
   border: none;
   color: var(--text2);
   font-family: var(--font);
-  font-size: 13px;
+  font-size: 12.5px;
   font-weight: 500;
-  padding: 8px 16px;
+  padding: 7px 13px;
   border-radius: 8px;
   cursor: pointer;
   transition: all .2s;
   white-space: nowrap;
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
+  flex-shrink: 0;       /* nav items must not shrink — allow scroll instead */
 }
 
 .tnav-btn .nav-num {
@@ -148,14 +201,93 @@ body {
 
 .tnav-btn.active {
   color: var(--cyan2);
-  background: rgba(0,200,232,0.1);
+  background: rgba(0,200,232,0.10);
   border: 1px solid rgba(0,200,232,0.25);
 }
 
+/* ── Badges ── */
 .topbar-badges {
   display: flex;
-  gap: 8px;
+  gap: 6px;
+  flex-shrink: 0;       /* never squish the badges */
+  align-items: center;
+}
+
+/* ── Mobile hamburger (hidden on desktop) ── */
+.hamburger {
+  display: none;
+  background: var(--glass2);
+  border: 1px solid var(--border2);
+  border-radius: 8px;
+  padding: 7px 10px;
+  cursor: pointer;
+  color: var(--text);
+  font-size: 18px;
   flex-shrink: 0;
+  line-height: 1;
+}
+
+/* ── Mobile drawer overlay ── */
+.mobile-nav-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: rgba(5,13,31,0.97);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  flex-direction: column;
+  padding: 24px 20px;
+  gap: 8px;
+  overflow-y: auto;
+}
+
+.mobile-nav-overlay.open {
+  display: flex;
+}
+
+.mobile-nav-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.mobile-nav-close {
+  background: var(--glass2);
+  border: 1px solid var(--border2);
+  border-radius: 8px;
+  padding: 8px 12px;
+  color: var(--text);
+  font-size: 20px;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.mobile-tnav-btn {
+  background: var(--glass);
+  border: 1px solid var(--border);
+  color: var(--text2);
+  font-family: var(--font);
+  font-size: 15px;
+  font-weight: 500;
+  padding: 14px 18px;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all .2s;
+  text-align: right;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.mobile-tnav-btn:hover,
+.mobile-tnav-btn.active {
+  color: var(--cyan2);
+  background: rgba(0,200,232,0.10);
+  border-color: rgba(0,200,232,0.25);
 }
 
 /* ═══════════════════════ MAIN LAYOUT ═══════════════════════ */
@@ -374,6 +506,7 @@ body {
 .card-glow-red    { box-shadow: inset 0 0 0 1px rgba(224,92,26,0.3), 0 0 40px rgba(224,92,26,0.1); }
 .card-glow-purple { box-shadow: inset 0 0 0 1px rgba(130,80,220,0.3), 0 0 40px rgba(130,80,220,0.1); }
 .card-glow-cyan   { box-shadow: inset 0 0 0 1px rgba(0,200,232,0.3), 0 0 40px rgba(0,200,232,0.1); }
+.card-glow-blue   { box-shadow: inset 0 0 0 1px rgba(26,107,224,0.3), 0 0 40px rgba(26,107,224,0.1); }
 
 /* ═══════════════════════ GRID LAYOUTS ═══════════════════════ */
 .grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px; }
@@ -945,19 +1078,6 @@ body {
 ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: rgba(0,200,232,0.4); }
 
-/* ═══════════════════════ RESPONSIVE ═══════════════════════ */
-@media (max-width: 768px) {
-  .topbar-badges { display: none; }
-  .section { padding: 40px 20px; }
-  .hero { padding: 60px 20px; }
-  .grid-2, .grid-3, .grid-4, .grid-5 { grid-template-columns: 1fr; }
-}
-
-@media (max-width: 540px) {
-  .topbar { padding: 0 16px; }
-  .tnav-btn { font-size: 12px; padding: 6px 10px; }
-}
-
 /* ═══════════════════════ TECH STACK PILL ═══════════════════════ */
 .tech-pill {
   display: inline-flex;
@@ -995,14 +1115,50 @@ body {
 }
 
 .callout strong { color: var(--cyan); }
+
+/* ═══════════════════════ RESPONSIVE ═══════════════════════ */
+
+/* Tablet: hide badges, keep nav scrollable */
+@media (max-width: 1024px) {
+  .topbar-badges { display: none; }
+}
+
+/* Mobile: show hamburger, hide desktop nav */
+@media (max-width: 768px) {
+  .topbar { padding: 0 14px; gap: 10px; }
+  .topbar-nav { display: none; }          /* hide desktop nav */
+  .topbar-badges { display: none; }
+  .hamburger { display: flex; align-items: center; justify-content: center; }
+
+  .section { padding: 40px 16px; }
+  .hero { padding: 60px 16px; }
+  .grid-2, .grid-3, .grid-4, .grid-5 { grid-template-columns: 1fr; }
+
+  .logo-text { font-size: 14px; }
+  .logo-sub  { font-size: 9px; }
+  .logo-icon { width: 32px; height: 32px; font-size: 15px; }
+}
+
+@media (max-width: 480px) {
+  .hero-title { font-size: 32px; }
+  .hero-sub   { font-size: 15px; }
+  .btn-primary, .btn-ghost { padding: 12px 20px; font-size: 14px; }
+}
 </style>
 </head>
 <body>
 
 <canvas id="bg-canvas"></canvas>
 
-<!-- ══════════════ TOPBAR ══════════════ -->
+<!-- ══════════════ TOPBAR (FIXED) ══════════════
+     Layout in RTL (right → left):
+     [Logo]  [←────── Nav (flex:1, scrollable) ──────→]  [Badges]  [Hamburger on mobile]
+     All three sections are flex children with proper shrink rules.
+     No margin-*:auto anywhere — that was the original bug.
+-->
 <header class="topbar">
+
+  <!-- 1. Logo — always RIGHT in RTL, flex-shrink:0 -->
   <a class="topbar-logo" href="#" onclick="showPage('vision');return false;">
     <div class="logo-icon">🎓</div>
     <div>
@@ -1011,6 +1167,7 @@ body {
     </div>
   </a>
 
+  <!-- 2. Desktop Nav — flex:1, scrollable, no margin:auto -->
   <nav class="topbar-nav" id="main-nav">
     <button class="tnav-btn active" onclick="showPage('vision')"><span class="nav-num">①</span>Vision</button>
     <button class="tnav-btn" onclick="showPage('screens')"><span class="nav-num">②</span>Screens</button>
@@ -1024,12 +1181,48 @@ body {
     <button class="tnav-btn" onclick="showPage('scaling')"><span class="nav-num">⑩</span>Scaling</button>
   </nav>
 
+  <!-- 3. Badges — flex-shrink:0, hidden below 1024px -->
   <div class="topbar-badges">
     <span class="badge3d b-blue">v1.0 Startup-Ready</span>
     <span class="badge3d b-teal">25 Screens</span>
     <span class="badge3d b-cyan">AI-Powered</span>
   </div>
+
+  <!-- 4. Hamburger — visible only on mobile (≤768px) -->
+  <button class="hamburger" onclick="openMobileNav()" aria-label="فتح القائمة">☰</button>
+
 </header>
+
+<!-- ══════════════ MOBILE NAV OVERLAY ══════════════ -->
+<div class="mobile-nav-overlay" id="mobile-nav">
+  <div class="mobile-nav-header">
+    <div style="display:flex;align-items:center;gap:10px;">
+      <div class="logo-icon">🎓</div>
+      <div>
+        <div class="logo-text">مصر للجامعات</div>
+        <div class="logo-sub">AI PLATFORM</div>
+      </div>
+    </div>
+    <button class="mobile-nav-close" onclick="closeMobileNav()">✕</button>
+  </div>
+
+  <button class="mobile-tnav-btn active" onclick="showPage('vision');closeMobileNav()"><span class="nav-num">①</span>Vision</button>
+  <button class="mobile-tnav-btn" onclick="showPage('screens');closeMobileNav()"><span class="nav-num">②</span>Screens</button>
+  <button class="mobile-tnav-btn" onclick="showPage('ux');closeMobileNav()"><span class="nav-num">③</span>UX Flow</button>
+  <button class="mobile-tnav-btn" onclick="showPage('frontend');closeMobileNav()"><span class="nav-num">④</span>Frontend</button>
+  <button class="mobile-tnav-btn" onclick="showPage('backend');closeMobileNav()"><span class="nav-num">⑤</span>Backend</button>
+  <button class="mobile-tnav-btn" onclick="showPage('database');closeMobileNav()"><span class="nav-num">⑥</span>Database</button>
+  <button class="mobile-tnav-btn" onclick="showPage('ai');closeMobileNav()"><span class="nav-num">⑦</span>AI System</button>
+  <button class="mobile-tnav-btn" onclick="showPage('dashboard');closeMobileNav()"><span class="nav-num">⑧</span>Dashboard</button>
+  <button class="mobile-tnav-btn" onclick="showPage('roadmap');closeMobileNav()"><span class="nav-num">⑨</span>Roadmap</button>
+  <button class="mobile-tnav-btn" onclick="showPage('scaling');closeMobileNav()"><span class="nav-num">⑩</span>Scaling</button>
+
+  <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border);display:flex;gap:8px;flex-wrap:wrap;">
+    <span class="badge3d b-blue">v1.0 Startup-Ready</span>
+    <span class="badge3d b-teal">25 Screens</span>
+    <span class="badge3d b-cyan">AI-Powered</span>
+  </div>
+</div>
 
 <main class="app-shell">
 
@@ -1162,138 +1355,38 @@ body {
 
     <h3 style="font-size:17px;font-weight:700;margin-bottom:16px;color:var(--cyan);">Auth Flow (Screens 1–5)</h3>
     <div class="grid-2" style="margin-bottom:32px;">
-      <div class="screen-card3d">
-        <div class="sc-num">01</div>
-        <div class="sc-title">Splash / Onboarding</div>
-        <div class="sc-desc">شاشة البداية مع 3 slides توضيحية عن المنصة وزرار "ابدأ الآن" و"سجل دخول"</div>
-        <div class="sc-prompt"><b>Prompt:</b> Design an onboarding screen for an Egyptian college guidance app. Show animated illustrations of students choosing their future. Arabic RTL. Dark navy background with blue gradient accents. 3 swipeable slides.</div>
-      </div>
-      <div class="screen-card3d">
-        <div class="sc-num">02</div>
-        <div class="sc-title">Registration</div>
-        <div class="sc-desc">اسم، رقم موبايل مصري (+20)، محافظة، نوع الحساب (طالب / ولي أمر)، كلمة السر</div>
-        <div class="sc-prompt"><b>Prompt:</b> Create a clean registration form for Egyptian students. Include fields: name, Egyptian phone (+20), governorate dropdown (27 محافظة), account type (student/parent), password. Glassmorphism style.</div>
-      </div>
-      <div class="screen-card3d">
-        <div class="sc-num">03</div>
-        <div class="sc-title">OTP Verification</div>
-        <div class="sc-desc">6 خانات OTP + countdown timer 60s + resend button مع animation</div>
-        <div class="sc-prompt"><b>Prompt:</b> OTP verification screen with 6 input boxes, 60-second countdown timer, resend button. Auto-focus next box. Success animation on correct code. Arabic instructions.</div>
-      </div>
-      <div class="screen-card3d">
-        <div class="sc-num">04</div>
-        <div class="sc-title">Student Profile Setup</div>
-        <div class="sc-desc">Section (علمي/أدبي/تجاري)، درجة الثانوية، المحافظة، الاهتمامات (multi-select)</div>
-        <div class="sc-prompt"><b>Prompt:</b> Student profile completion screen. Section selector (علمي/أدبي/تجاري), score input (0-410), multi-select interests chips. Progress bar showing completion %. Modern card UI.</div>
-      </div>
-      <div class="screen-card3d">
-        <div class="sc-num">05</div>
-        <div class="sc-title">Login</div>
-        <div class="sc-desc">Phone + Password login مع "نسيت كلمة السر؟" و Social login (Google)</div>
-        <div class="sc-prompt"><b>Prompt:</b> Login screen with phone number and password fields. Forgot password link. Google OAuth button. Biometric login toggle. Remember me checkbox. Arabic RTL layout.</div>
-      </div>
+      <div class="screen-card3d"><div class="sc-num">01</div><div class="sc-title">Splash / Onboarding</div><div class="sc-desc">شاشة البداية مع 3 slides توضيحية عن المنصة وزرار "ابدأ الآن" و"سجل دخول"</div><div class="sc-prompt"><b>Prompt:</b> Design an onboarding screen for an Egyptian college guidance app. Show animated illustrations of students choosing their future. Arabic RTL. Dark navy background with blue gradient accents. 3 swipeable slides.</div></div>
+      <div class="screen-card3d"><div class="sc-num">02</div><div class="sc-title">Registration</div><div class="sc-desc">اسم، رقم موبايل مصري (+20)، محافظة، نوع الحساب (طالب / ولي أمر)، كلمة السر</div><div class="sc-prompt"><b>Prompt:</b> Create a clean registration form for Egyptian students. Include fields: name, Egyptian phone (+20), governorate dropdown (27 محافظة), account type (student/parent), password. Glassmorphism style.</div></div>
+      <div class="screen-card3d"><div class="sc-num">03</div><div class="sc-title">OTP Verification</div><div class="sc-desc">6 خانات OTP + countdown timer 60s + resend button مع animation</div><div class="sc-prompt"><b>Prompt:</b> OTP verification screen with 6 input boxes, 60-second countdown timer, resend button. Auto-focus next box. Success animation on correct code. Arabic instructions.</div></div>
+      <div class="screen-card3d"><div class="sc-num">04</div><div class="sc-title">Student Profile Setup</div><div class="sc-desc">Section (علمي/أدبي/تجاري)، درجة الثانوية، المحافظة، الاهتمامات (multi-select)</div><div class="sc-prompt"><b>Prompt:</b> Student profile completion screen. Section selector (علمي/أدبي/تجاري), score input (0-410), multi-select interests chips. Progress bar showing completion %. Modern card UI.</div></div>
+      <div class="screen-card3d"><div class="sc-num">05</div><div class="sc-title">Login</div><div class="sc-desc">Phone + Password login مع "نسيت كلمة السر؟" و Social login (Google)</div><div class="sc-prompt"><b>Prompt:</b> Login screen with phone number and password fields. Forgot password link. Google OAuth button. Biometric login toggle. Remember me checkbox. Arabic RTL layout.</div></div>
     </div>
 
     <h3 style="font-size:17px;font-weight:700;margin-bottom:16px;color:var(--teal);">Core Platform (Screens 6–15)</h3>
     <div class="grid-2" style="margin-bottom:32px;">
-      <div class="screen-card3d">
-        <div class="sc-num">06</div>
-        <div class="sc-title">Home Dashboard</div>
-        <div class="sc-desc">Greeting + AI recommendation card + Quick actions (Quiz / Search / Saved) + Trending colleges section</div>
-        <div class="sc-prompt"><b>Prompt:</b> Student home dashboard. Personalized greeting with name. Top 3 AI-recommended colleges as horizontal scrollable cards showing match %. Quick action buttons: Take Quiz, Find Colleges, Saved, Chat AI. Recently viewed section.</div>
-      </div>
-      <div class="screen-card3d">
-        <div class="sc-num">07</div>
-        <div class="sc-title">University Finder</div>
-        <div class="sc-desc">Filter بالمحافظة، النوع (حكومي/خاص/أهلي)، الدرجة، المصاريف + Sort + Search bar</div>
-        <div class="sc-prompt"><b>Prompt:</b> College search and filter screen. Top search bar. Filter chips: governorate, type (gov/private/national), min score range, annual fees range. Results as cards with match %, fees, employment rate. Sort: relevance/fees/score.</div>
-      </div>
-      <div class="screen-card3d">
-        <div class="sc-num">08</div>
-        <div class="sc-title">College Details</div>
-        <div class="sc-desc">معلومات شاملة: مصاريف، درجة القبول، نسبة التوظيف، التخصصات، آراء الطلاب</div>
-        <div class="sc-prompt"><b>Prompt:</b> College detail page with hero image, key stats (fees, min score, employment rate, avg salary), specializations list, admission steps, student reviews, similar colleges. Save button with heart animation.</div>
-      </div>
-      <div class="screen-card3d">
-        <div class="sc-num">09</div>
-        <div class="sc-title">AI Quiz</div>
-        <div class="sc-desc">15 سؤال لتحديد الشخصية والميول مع Progress bar وanimated transitions</div>
-        <div class="sc-prompt"><b>Prompt:</b> 15-question personality and interest quiz. One question per screen. 4 answer options as cards with icons. Animated progress bar. Previous/Next navigation. Estimated time remaining. Smooth slide transitions between questions.</div>
-      </div>
-      <div class="screen-card3d">
-        <div class="sc-num">10</div>
-        <div class="sc-title">Quiz Results</div>
-        <div class="sc-desc">نوع الشخصية + Top 10 توصيات كليات مرتبة بـ match score مع explanation</div>
-        <div class="sc-prompt"><b>Prompt:</b> Quiz results screen. Personality type reveal with animation. Top 10 college recommendations as ranked list with match percentage bars. Each recommendation shows why it matched. Share results button. Retake quiz option.</div>
-      </div>
-      <div class="screen-card3d">
-        <div class="sc-num">11</div>
-        <div class="sc-title">Compare Colleges</div>
-        <div class="sc-desc">مقارنة 2-3 كليات جنب بعض في table تفاعلية مع highlight للأفضل في كل category</div>
-        <div class="sc-prompt"><b>Prompt:</b> Side-by-side college comparison table. 2-3 colleges in columns. Rows: fees, min score, employment %, avg salary, location, specializations count. Highlight winner in each row with green accent. Sticky header with college names.</div>
-      </div>
+      <div class="screen-card3d"><div class="sc-num">06</div><div class="sc-title">Home Dashboard</div><div class="sc-desc">Greeting + AI recommendation card + Quick actions + Trending colleges section</div><div class="sc-prompt"><b>Prompt:</b> Student home dashboard. Personalized greeting with name. Top 3 AI-recommended colleges as horizontal scrollable cards showing match %. Quick action buttons: Take Quiz, Find Colleges, Saved, Chat AI.</div></div>
+      <div class="screen-card3d"><div class="sc-num">07</div><div class="sc-title">University Finder</div><div class="sc-desc">Filter بالمحافظة، النوع (حكومي/خاص/أهلي)، الدرجة، المصاريف + Sort + Search bar</div><div class="sc-prompt"><b>Prompt:</b> College search and filter screen. Top search bar. Filter chips: governorate, type (gov/private/national), min score range, annual fees range. Results as cards with match %, fees, employment rate.</div></div>
+      <div class="screen-card3d"><div class="sc-num">08</div><div class="sc-title">College Details</div><div class="sc-desc">معلومات شاملة: مصاريف، درجة القبول، نسبة التوظيف، التخصصات، آراء الطلاب</div><div class="sc-prompt"><b>Prompt:</b> College detail page with hero image, key stats (fees, min score, employment rate, avg salary), specializations list, admission steps, student reviews, similar colleges. Save button with heart animation.</div></div>
+      <div class="screen-card3d"><div class="sc-num">09</div><div class="sc-title">AI Quiz</div><div class="sc-desc">15 سؤال لتحديد الشخصية والميول مع Progress bar وanimated transitions</div><div class="sc-prompt"><b>Prompt:</b> 15-question personality and interest quiz. One question per screen. 4 answer options as cards with icons. Animated progress bar. Previous/Next navigation. Estimated time remaining.</div></div>
+      <div class="screen-card3d"><div class="sc-num">10</div><div class="sc-title">Quiz Results</div><div class="sc-desc">نوع الشخصية + Top 10 توصيات كليات مرتبة بـ match score مع explanation</div><div class="sc-prompt"><b>Prompt:</b> Quiz results screen. Personality type reveal with animation. Top 10 college recommendations as ranked list with match percentage bars. Each recommendation shows why it matched.</div></div>
+      <div class="screen-card3d"><div class="sc-num">11</div><div class="sc-title">Compare Colleges</div><div class="sc-desc">مقارنة 2-3 كليات جنب بعض في table تفاعلية مع highlight للأفضل</div><div class="sc-prompt"><b>Prompt:</b> Side-by-side college comparison table. 2-3 colleges in columns. Rows: fees, min score, employment %, avg salary, location, specializations count. Highlight winner in each row with green accent.</div></div>
     </div>
 
     <h3 style="font-size:17px;font-weight:700;margin-bottom:16px;color:var(--amber);">AI Features (Screens 16–22)</h3>
     <div class="grid-2" style="margin-bottom:32px;">
-      <div class="screen-card3d">
-        <div class="sc-num">16</div>
-        <div class="sc-title">AI Chatbot</div>
-        <div class="sc-desc">chat interface كامل بالعربي مع streaming responses، suggested questions، وcollege cards داخل المحادثة</div>
-        <div class="sc-prompt"><b>Prompt:</b> AI chatbot for Egyptian college guidance. Chat bubbles RTL Arabic. Streaming text animation. Suggested questions chips at bottom. College recommendation cards appear inline in chat. Clear chat history option. Copy message button.</div>
-      </div>
-      <div class="screen-card3d">
-        <div class="sc-num">17</div>
-        <div class="sc-title">Salary Predictor</div>
-        <div class="sc-desc">اختر التخصص والجامعة وسنوات الخبرة → animated chart للراتب المتوقع بالجنيه</div>
-        <div class="sc-prompt"><b>Prompt:</b> Salary prediction tool. Input: specialization picker, university type, years of experience slider (0-20). Output: animated bar chart showing min/median/max salary. Comparison with Egyptian market average. Data source badge.</div>
-      </div>
-      <div class="screen-card3d">
-        <div class="sc-num">18</div>
-        <div class="sc-title">Career Path</div>
-        <div class="sc-desc">Timeline مرئي للمسار المهني: الكلية → التدريب → الوظيفة → النمو</div>
-        <div class="sc-prompt"><b>Prompt:</b> Visual career roadmap timeline. Stages: college years → internship → first job → career growth → senior roles. Each stage has expected skills, salary range, timeline. Interactive nodes with expandable details.</div>
-      </div>
-      <div class="screen-card3d">
-        <div class="sc-num">19</div>
-        <div class="sc-title">Learning Roadmap</div>
-        <div class="sc-desc">خريطة طريق بالكورسات والمهارات المطلوبة لكل تخصص مع links للموارد</div>
-        <div class="sc-prompt"><b>Prompt:</b> Learning roadmap for chosen specialization. Skills tree visualization. Recommended online courses with platform logos (Coursera, Udemy, etc). Progress tracking. Arabic and English content toggle. Bookmark courses.</div>
-      </div>
-      <div class="screen-card3d">
-        <div class="sc-num">20</div>
-        <div class="sc-title">Alternative Recommendations</div>
-        <div class="sc-desc">لو الطالب مش واصل للدرجة: بدائل مقترحة بناءً على similarity score</div>
-        <div class="sc-prompt"><b>Prompt:</b> Alternative colleges screen triggered when student score is below minimum. Show 5 similar alternatives with similarity score. Explain why each is a good alternative. Adjustable score input to recalculate. Encouraging tone in Arabic.</div>
-      </div>
-      <div class="screen-card3d">
-        <div class="sc-num">21</div>
-        <div class="sc-title">Scholarships</div>
-        <div class="sc-desc">قاعدة بيانات المنح الدراسية مع eligibility checker ذكي</div>
-        <div class="sc-prompt"><b>Prompt:</b> Scholarships database with AI eligibility checker. Filter by: score range, financial need, specialization, location. Each scholarship card: amount, deadline, requirements. Apply/Save buttons. Eligibility match percentage.</div>
-      </div>
+      <div class="screen-card3d"><div class="sc-num">16</div><div class="sc-title">AI Chatbot</div><div class="sc-desc">chat interface كامل بالعربي مع streaming responses، suggested questions، وcollege cards</div><div class="sc-prompt"><b>Prompt:</b> AI chatbot for Egyptian college guidance. Chat bubbles RTL Arabic. Streaming text animation. Suggested questions chips at bottom. College recommendation cards appear inline in chat.</div></div>
+      <div class="screen-card3d"><div class="sc-num">17</div><div class="sc-title">Salary Predictor</div><div class="sc-desc">اختر التخصص والجامعة وسنوات الخبرة → animated chart للراتب المتوقع</div><div class="sc-prompt"><b>Prompt:</b> Salary prediction tool. Input: specialization picker, university type, years of experience slider (0-20). Output: animated bar chart showing min/median/max salary in EGP.</div></div>
+      <div class="screen-card3d"><div class="sc-num">18</div><div class="sc-title">Career Path</div><div class="sc-desc">Timeline مرئي للمسار المهني: الكلية → التدريب → الوظيفة → النمو</div><div class="sc-prompt"><b>Prompt:</b> Visual career roadmap timeline. Stages: college years → internship → first job → career growth → senior roles. Each stage has expected skills, salary range, timeline.</div></div>
+      <div class="screen-card3d"><div class="sc-num">19</div><div class="sc-title">Learning Roadmap</div><div class="sc-desc">خريطة طريق بالكورسات والمهارات المطلوبة لكل تخصص مع links للموارد</div><div class="sc-prompt"><b>Prompt:</b> Learning roadmap for chosen specialization. Skills tree visualization. Recommended online courses with platform logos. Progress tracking. Bookmark courses.</div></div>
+      <div class="screen-card3d"><div class="sc-num">20</div><div class="sc-title">Alternative Recommendations</div><div class="sc-desc">لو الطالب مش واصل للدرجة: بدائل مقترحة بناءً على similarity score</div><div class="sc-prompt"><b>Prompt:</b> Alternative colleges screen triggered when student score is below minimum. Show 5 similar alternatives with similarity score. Explain why each is a good alternative. Encouraging tone.</div></div>
+      <div class="screen-card3d"><div class="sc-num">21</div><div class="sc-title">Scholarships</div><div class="sc-desc">قاعدة بيانات المنح الدراسية مع eligibility checker ذكي</div><div class="sc-prompt"><b>Prompt:</b> Scholarships database with AI eligibility checker. Filter by: score range, financial need, specialization, location. Each scholarship card: amount, deadline, requirements. Eligibility match percentage.</div></div>
     </div>
 
     <h3 style="font-size:17px;font-weight:700;margin-bottom:16px;color:var(--red);">Parent & Admin (Screens 23–25)</h3>
     <div class="grid-2">
-      <div class="screen-card3d">
-        <div class="sc-num">23</div>
-        <div class="sc-title">Parent Dashboard</div>
-        <div class="sc-desc">متابعة نشاط الأبناء، الكليات المحفوظة، نتائج Quiz، والتوصيات</div>
-        <div class="sc-prompt"><b>Prompt:</b> Parent dashboard showing linked students' activity. Child's quiz results, saved colleges, time spent. Insights: most viewed colleges, personality type. Notification settings. Add another child button.</div>
-      </div>
-      <div class="screen-card3d">
-        <div class="sc-num">24</div>
-        <div class="sc-title">Admin Analytics</div>
-        <div class="sc-desc">لوحة تحكم كاملة: مستخدمين، أداء AI، بيانات جغرافية، revenue</div>
-        <div class="sc-prompt"><b>Prompt:</b> Admin dashboard with KPI cards (total users, DAU, quiz completions, revenue). Charts: user growth line chart, college interest pie, Egypt map heatmap, AI chatbot satisfaction score. User management table with filters.</div>
-      </div>
-      <div class="screen-card3d">
-        <div class="sc-num">25</div>
-        <div class="sc-title">Admission Steps</div>
-        <div class="sc-desc">دليل خطوة بخطوة لإجراءات التقديم لكل كلية مع checklist تفاعلي</div>
-        <div class="sc-prompt"><b>Prompt:</b> Step-by-step admission guide for specific college. Interactive checklist with document requirements. Important dates calendar. Official links. Progress tracker showing how many steps completed. Print/share guide button.</div>
-      </div>
+      <div class="screen-card3d"><div class="sc-num">23</div><div class="sc-title">Parent Dashboard</div><div class="sc-desc">متابعة نشاط الأبناء، الكليات المحفوظة، نتائج Quiz، والتوصيات</div><div class="sc-prompt"><b>Prompt:</b> Parent dashboard showing linked students' activity. Child's quiz results, saved colleges, time spent. Insights: most viewed colleges, personality type. Notification settings.</div></div>
+      <div class="screen-card3d"><div class="sc-num">24</div><div class="sc-title">Admin Analytics</div><div class="sc-desc">لوحة تحكم كاملة: مستخدمين، أداء AI، بيانات جغرافية، revenue</div><div class="sc-prompt"><b>Prompt:</b> Admin dashboard with KPI cards (total users, DAU, quiz completions, revenue). Charts: user growth line chart, college interest pie, Egypt map heatmap, AI chatbot satisfaction score.</div></div>
+      <div class="screen-card3d"><div class="sc-num">25</div><div class="sc-title">Admission Steps</div><div class="sc-desc">دليل خطوة بخطوة لإجراءات التقديم لكل كلية مع checklist تفاعلي</div><div class="sc-prompt"><b>Prompt:</b> Step-by-step admission guide for specific college. Interactive checklist with document requirements. Important dates calendar. Official links. Progress tracker showing how many steps completed.</div></div>
     </div>
   </div>
 </div>
@@ -1303,80 +1396,23 @@ body {
   <div class="section">
     <h2 class="section-title">🔄 UX Flow & Navigation</h2>
     <p class="section-desc">رحلة المستخدم من أول لحظة لحد الاختيار النهائي</p>
-
     <div class="grid-2" style="margin-bottom:40px;">
       <div class="card3d">
         <h3 class="card-h3" style="margin-bottom:20px;">Student Journey</h3>
-        <div class="flow-step">
-          <div class="flow-num">1</div>
-          <div class="flow-content">
-            <h4>Onboarding & Registration</h4>
-            <p>تسجيل حساب جديد → OTP verification → إدخال البيانات الأساسية (section، درجة، محافظة)</p>
-          </div>
-        </div>
-        <div class="flow-step">
-          <div class="flow-num">2</div>
-          <div class="flow-content">
-            <h4>AI Quiz (Optional but Recommended)</h4>
-            <p>15 سؤال لتحديد الشخصية والميول → نتائج فورية مع Top 10 توصيات مخصصة</p>
-          </div>
-        </div>
-        <div class="flow-step">
-          <div class="flow-num">3</div>
-          <div class="flow-content">
-            <h4>Explore & Discover</h4>
-            <p>بحث وفلترة الكليات → مقارنة 2-3 كليات → حفظ المفضلة → تفاصيل كل كلية</p>
-          </div>
-        </div>
-        <div class="flow-step">
-          <div class="flow-num">4</div>
-          <div class="flow-content">
-            <h4>Deep Dive with AI</h4>
-            <p>استخدام AI Chatbot للأسئلة التفصيلية → Salary Predictor → Career Path visualization</p>
-          </div>
-        </div>
-        <div class="flow-step">
-          <div class="flow-num">5</div>
-          <div class="flow-content">
-            <h4>Decision & Action</h4>
-            <p>Admission Steps guide → Scholarships check → مشاركة النتائج مع ولي الأمر</p>
-          </div>
-        </div>
+        <div class="flow-step"><div class="flow-num">1</div><div class="flow-content"><h4>Onboarding & Registration</h4><p>تسجيل حساب جديد → OTP verification → إدخال البيانات الأساسية</p></div></div>
+        <div class="flow-step"><div class="flow-num">2</div><div class="flow-content"><h4>AI Quiz</h4><p>15 سؤال لتحديد الشخصية والميول → نتائج فورية مع Top 10 توصيات مخصصة</p></div></div>
+        <div class="flow-step"><div class="flow-num">3</div><div class="flow-content"><h4>Explore & Discover</h4><p>بحث وفلترة الكليات → مقارنة → حفظ المفضلة → تفاصيل كل كلية</p></div></div>
+        <div class="flow-step"><div class="flow-num">4</div><div class="flow-content"><h4>Deep Dive with AI</h4><p>AI Chatbot → Salary Predictor → Career Path visualization</p></div></div>
+        <div class="flow-step"><div class="flow-num">5</div><div class="flow-content"><h4>Decision & Action</h4><p>Admission Steps guide → Scholarships → مشاركة مع ولي الأمر</p></div></div>
       </div>
-
       <div class="card3d">
         <h3 class="card-h3" style="margin-bottom:20px;">Navigation Architecture</h3>
-        <div class="callout">
-          <strong>Primary Navigation (Sidebar/Topbar):</strong> Home · Explore · Quiz · AI Chat · Profile
-        </div>
-        <div class="callout">
-          <strong>Secondary (Context-based):</strong> College Details → Compare → Save → Admission Steps
-        </div>
-        <div class="callout">
-          <strong>Parent Portal:</strong> منفصل بـ role-based routing مع shared auth system
-        </div>
-        <div class="callout">
-          <strong>Admin Panel:</strong> /admin route محمي بـ admin role فقط مع full analytics
-        </div>
-
-        <h3 class="card-h3" style="margin-top:20px;margin-bottom:12px;">User Roles & Permissions</h3>
-        <div class="grid-2" style="gap:10px;">
-          <div style="background:var(--glass2);border-radius:10px;padding:12px;">
-            <div class="badge3d b-blue" style="margin-bottom:8px;">student</div>
-            <p class="card-p" style="font-size:12px;">Quiz، كليات، حفظ، Chatbot، ملف شخصي، Salary Predictor</p>
-          </div>
-          <div style="background:var(--glass2);border-radius:10px;padding:12px;">
-            <div class="badge3d b-teal" style="margin-bottom:8px;">parent</div>
-            <p class="card-p" style="font-size:12px;">متابعة الأبناء، Parent Dashboard، الرؤى والتقارير</p>
-          </div>
-          <div style="background:var(--glass2);border-radius:10px;padding:12px;">
-            <div class="badge3d b-amber" style="margin-bottom:8px;">admin</div>
-            <p class="card-p" style="font-size:12px;">Analytics، إدارة الكليات، إدارة المستخدمين، AI monitoring</p>
-          </div>
-        </div>
+        <div class="callout"><strong>Primary Navigation:</strong> Home · Explore · Quiz · AI Chat · Profile</div>
+        <div class="callout"><strong>Secondary (Context-based):</strong> College Details → Compare → Save → Admission Steps</div>
+        <div class="callout"><strong>Parent Portal:</strong> منفصل بـ role-based routing مع shared auth system</div>
+        <div class="callout"><strong>Admin Panel:</strong> /admin route محمي بـ admin role فقط</div>
       </div>
     </div>
-
     <h2 class="section-title">📐 Information Architecture</h2>
     <div class="card3d">
       <div class="code-block">/ (Root)
@@ -1385,22 +1421,22 @@ body {
 │   ├── /register
 │   └── /otp-verify
 ├── /app (Protected)
-│   ├── /dashboard          → Home Dashboard
-│   ├── /quiz               → AI Quiz Flow
-│   ├── /quiz/results       → Quiz Results + Recommendations
-│   ├── /colleges           → University Finder
-│   ├── /colleges/:id       → College Details
-│   ├── /colleges/compare   → Compare Colleges
-│   ├── /saved              → Saved Colleges
-│   ├── /chat               → AI Chatbot
-│   ├── /salary             → Salary Predictor
-│   ├── /career/:id         → Career Path
-│   ├── /scholarships       → Scholarships DB
-│   └── /profile            → Student Profile
-├── /parent (Parent Role)
-│   └── /parent/dashboard   → Parent Dashboard
-└── /admin (Admin Role)
-    └── /admin/analytics    → Admin Panel</div>
+│   ├── /dashboard
+│   ├── /quiz
+│   ├── /quiz/results
+│   ├── /colleges
+│   ├── /colleges/:id
+│   ├── /colleges/compare
+│   ├── /saved
+│   ├── /chat
+│   ├── /salary
+│   ├── /career/:id
+│   ├── /scholarships
+│   └── /profile
+├── /parent
+│   └── /parent/dashboard
+└── /admin
+    └── /admin/analytics</div>
     </div>
   </div>
 </div>
@@ -1410,70 +1446,35 @@ body {
   <div class="section">
     <h2 class="section-title">⚛️ Frontend Architecture</h2>
     <p class="section-desc">Next.js 14 + TypeScript + Tailwind CSS</p>
-
     <div class="grid-2" style="margin-bottom:32px;">
       <div class="card3d card-glow-blue">
         <h3 class="card-h3">Tech Stack</h3>
         <div class="tag-row" style="margin-top:12px;">
-          <span class="tech-pill">Next.js 14 (App Router)</span>
-          <span class="tech-pill">TypeScript</span>
-          <span class="tech-pill">Tailwind CSS</span>
-          <span class="tech-pill">Shadcn/UI</span>
-          <span class="tech-pill">Zustand</span>
-          <span class="tech-pill">React Query</span>
-          <span class="tech-pill">Framer Motion</span>
-          <span class="tech-pill">Recharts</span>
-          <span class="tech-pill">Three.js</span>
-          <span class="tech-pill">i18next (Arabic)</span>
+          <span class="tech-pill">Next.js 14 (App Router)</span><span class="tech-pill">TypeScript</span><span class="tech-pill">Tailwind CSS</span><span class="tech-pill">Shadcn/UI</span><span class="tech-pill">Zustand</span><span class="tech-pill">React Query</span><span class="tech-pill">Framer Motion</span><span class="tech-pill">Recharts</span><span class="tech-pill">Three.js</span><span class="tech-pill">i18next (Arabic)</span>
         </div>
       </div>
       <div class="card3d card-glow-teal">
         <h3 class="card-h3">Folder Structure</h3>
         <div class="code-block">src/
-├── app/              # App Router pages
-├── components/       # Reusable components
-│   ├── ui/           # Design system
-│   ├── college/      # College components
-│   ├── quiz/         # Quiz components
-│   └── ai/           # AI components
-├── lib/              # Utils & API clients
-├── hooks/            # Custom hooks
-├── store/            # Zustand stores
-└── types/            # TypeScript types</div>
+├── app/
+├── components/
+│   ├── ui/
+│   ├── college/
+│   ├── quiz/
+│   └── ai/
+├── lib/
+├── hooks/
+├── store/
+└── types/</div>
       </div>
     </div>
-
     <div class="grid-3">
-      <div class="card3d">
-        <div class="badge3d b-blue" style="margin-bottom:12px;">State Management</div>
-        <h3 class="card-h3">Zustand</h3>
-        <p class="card-p">useAuthStore (user + token) + useQuizStore (answers + results) + useCollegeStore (saved + filters) + useChatStore (messages + streaming)</p>
-      </div>
-      <div class="card3d">
-        <div class="badge3d b-teal" style="margin-bottom:12px;">Data Fetching</div>
-        <h3 class="card-h3">React Query</h3>
-        <p class="card-p">Server state، caching، background refetch، optimistic updates. SWR fallback لـ static data. streaming للـ AI chat responses</p>
-      </div>
-      <div class="card3d">
-        <div class="badge3d b-purple" style="margin-bottom:12px;">Internationalization</div>
-        <h3 class="card-h3">RTL-First</h3>
-        <p class="card-p">Arabic primary language. dir="rtl" على root. i18next لـ dynamic strings. Cairo font لكل Arabic content</p>
-      </div>
-      <div class="card3d">
-        <div class="badge3d b-amber" style="margin-bottom:12px;">Performance</div>
-        <h3 class="card-h3">Optimizations</h3>
-        <p class="card-p">Next.js Image optimization. Dynamic imports للـ AI components. Virtualized lists للـ college results. Service Worker للـ offline support</p>
-      </div>
-      <div class="card3d">
-        <div class="badge3d b-cyan" style="margin-bottom:12px;">UI Components</div>
-        <h3 class="card-h3">Design System</h3>
-        <p class="card-p">Shadcn/UI base + customized Tailwind config. Dark mode only (navy theme). Consistent variants: size/color/loading states</p>
-      </div>
-      <div class="card3d">
-        <div class="badge3d b-red" style="margin-bottom:12px;">Testing</div>
-        <h3 class="card-h3">Quality</h3>
-        <p class="card-p">Vitest + React Testing Library للـ unit tests. Playwright للـ E2E. Storybook لـ component documentation</p>
-      </div>
+      <div class="card3d"><div class="badge3d b-blue" style="margin-bottom:12px;">State Management</div><h3 class="card-h3">Zustand</h3><p class="card-p">useAuthStore + useQuizStore + useCollegeStore + useChatStore</p></div>
+      <div class="card3d"><div class="badge3d b-teal" style="margin-bottom:12px;">Data Fetching</div><h3 class="card-h3">React Query</h3><p class="card-p">Server state، caching، background refetch، optimistic updates. Streaming للـ AI chat.</p></div>
+      <div class="card3d"><div class="badge3d b-purple" style="margin-bottom:12px;">Internationalization</div><h3 class="card-h3">RTL-First</h3><p class="card-p">Arabic primary. dir="rtl" على root. i18next لـ dynamic strings. Cairo font.</p></div>
+      <div class="card3d"><div class="badge3d b-amber" style="margin-bottom:12px;">Performance</div><h3 class="card-h3">Optimizations</h3><p class="card-p">Next.js Image optimization. Dynamic imports. Virtualized lists. Service Worker للـ offline.</p></div>
+      <div class="card3d"><div class="badge3d b-cyan" style="margin-bottom:12px;">UI Components</div><h3 class="card-h3">Design System</h3><p class="card-p">Shadcn/UI base + customized Tailwind. Dark mode only. Consistent variants.</p></div>
+      <div class="card3d"><div class="badge3d b-red" style="margin-bottom:12px;">Testing</div><h3 class="card-h3">Quality</h3><p class="card-p">Vitest + React Testing Library. Playwright للـ E2E. Storybook لـ component docs.</p></div>
     </div>
   </div>
 </div>
@@ -1483,79 +1484,30 @@ body {
   <div class="section">
     <h2 class="section-title">⚙️ Backend Architecture</h2>
     <p class="section-desc">Node.js + Express + PostgreSQL + Redis</p>
-
     <div class="grid-2" style="margin-bottom:32px;">
       <div class="card3d card-glow-teal">
         <h3 class="card-h3">Tech Stack</h3>
-        <div class="tag-row" style="margin-top:12px;">
-          <span class="tech-pill">Node.js 20 LTS</span>
-          <span class="tech-pill">Express.js</span>
-          <span class="tech-pill">TypeScript</span>
-          <span class="tech-pill">PostgreSQL 16</span>
-          <span class="tech-pill">Redis 7</span>
-          <span class="tech-pill">Prisma ORM</span>
-          <span class="tech-pill">JWT + Refresh Tokens</span>
-          <span class="tech-pill">Bull.js (Queues)</span>
-          <span class="tech-pill">Socket.io (Streaming)</span>
-          <span class="tech-pill">AWS S3</span>
-        </div>
+        <div class="tag-row" style="margin-top:12px;"><span class="tech-pill">Node.js 20 LTS</span><span class="tech-pill">Express.js</span><span class="tech-pill">TypeScript</span><span class="tech-pill">PostgreSQL 16</span><span class="tech-pill">Redis 7</span><span class="tech-pill">Prisma ORM</span><span class="tech-pill">JWT + Refresh Tokens</span><span class="tech-pill">Bull.js</span><span class="tech-pill">Socket.io</span><span class="tech-pill">AWS S3</span></div>
       </div>
       <div class="card3d card-glow-amber">
         <h3 class="card-h3">Microservices Architecture</h3>
-        <p class="card-p" style="margin-bottom:12px;">Monolith to start, microservices-ready architecture:</p>
-        <div class="tag-row">
-          <span class="badge3d b-blue">API Gateway</span>
-          <span class="badge3d b-teal">Auth Service</span>
-          <span class="badge3d b-amber">College Service</span>
-          <span class="badge3d b-purple">AI Service (Python)</span>
-          <span class="badge3d b-cyan">Notification Service</span>
-          <span class="badge3d b-red">Analytics Service</span>
-        </div>
+        <p class="card-p" style="margin-bottom:12px;">Monolith to start, microservices-ready:</p>
+        <div class="tag-row"><span class="badge3d b-blue">API Gateway</span><span class="badge3d b-teal">Auth Service</span><span class="badge3d b-amber">College Service</span><span class="badge3d b-purple">AI Service (Python)</span><span class="badge3d b-cyan">Notification Service</span><span class="badge3d b-red">Analytics Service</span></div>
       </div>
     </div>
-
-    <h2 class="section-title" style="font-size:20px;">🔌 API Endpoints</h2>
-
     <div class="card3d" style="margin-bottom:16px;">
       <h3 class="card-h3" style="margin-bottom:16px;">Auth APIs</h3>
-      <div class="api-row3d"><span class="method-chip m-post">POST</span><div><div class="ep-code">/api/auth/register</div><div class="ep-desc">تسجيل مستخدم جديد (student/parent)</div></div></div>
-      <div class="api-row3d"><span class="method-chip m-post">POST</span><div><div class="ep-code">/api/auth/login</div><div class="ep-desc">تسجيل دخول + JWT token + refresh token</div></div></div>
-      <div class="api-row3d"><span class="method-chip m-post">POST</span><div><div class="ep-code">/api/auth/otp/send</div><div class="ep-desc">إرسال OTP على الموبايل (Vodafone/Etisalat)</div></div></div>
-      <div class="api-row3d"><span class="method-chip m-post">POST</span><div><div class="ep-code">/api/auth/otp/verify</div><div class="ep-desc">تحقق من OTP وإتمام التسجيل</div></div></div>
-      <div class="api-row3d"><span class="method-chip m-post">POST</span><div><div class="ep-code">/api/auth/refresh</div><div class="ep-desc">تجديد الـ access token باستخدام refresh token</div></div></div>
+      <div class="api-row3d"><span class="method-chip m-post">POST</span><div><div class="ep-code">/api/auth/register</div><div class="ep-desc">تسجيل مستخدم جديد</div></div></div>
+      <div class="api-row3d"><span class="method-chip m-post">POST</span><div><div class="ep-code">/api/auth/login</div><div class="ep-desc">تسجيل دخول + JWT + refresh token</div></div></div>
+      <div class="api-row3d"><span class="method-chip m-post">POST</span><div><div class="ep-code">/api/auth/otp/send</div><div class="ep-desc">إرسال OTP على الموبايل</div></div></div>
+      <div class="api-row3d"><span class="method-chip m-post">POST</span><div><div class="ep-code">/api/auth/otp/verify</div><div class="ep-desc">تحقق من OTP</div></div></div>
     </div>
-
-    <div class="card3d" style="margin-bottom:16px;">
-      <h3 class="card-h3" style="margin-bottom:16px;">Colleges APIs</h3>
-      <div class="api-row3d"><span class="method-chip m-get">GET</span><div><div class="ep-code">/api/colleges?governorate=&type=&min_score=&page=</div><div class="ep-desc">قائمة الكليات مع filters + pagination</div></div></div>
-      <div class="api-row3d"><span class="method-chip m-get">GET</span><div><div class="ep-code">/api/colleges/:id</div><div class="ep-desc">تفاصيل كلية معينة كاملة</div></div></div>
-      <div class="api-row3d"><span class="method-chip m-get">GET</span><div><div class="ep-code">/api/colleges/compare?ids=1,2,3</div><div class="ep-desc">مقارنة 2-3 كليات في مصفوفة تفصيلية</div></div></div>
-      <div class="api-row3d"><span class="method-chip m-post">POST</span><div><div class="ep-code">/api/students/saved-colleges</div><div class="ep-desc">حفظ/إلغاء حفظ كلية</div></div></div>
-      <div class="api-row3d"><span class="method-chip m-get">GET</span><div><div class="ep-code">/api/students/saved-colleges</div><div class="ep-desc">جلب الكليات المحفوظة للطالب</div></div></div>
-    </div>
-
     <div class="card3d" style="margin-bottom:16px;">
       <h3 class="card-h3" style="margin-bottom:16px;">AI Endpoints</h3>
-      <div class="api-row3d"><span class="method-chip m-post">POST</span><div><div class="ep-code">/api/ai/quiz/submit</div><div class="ep-desc">إرسال إجابات Quiz → AI recommendations (Top 10)</div></div></div>
-      <div class="api-row3d"><span class="method-chip m-post">POST</span><div><div class="ep-code">/api/ai/chat</div><div class="ep-desc">AI Chatbot message + Server-Sent Events streaming</div></div></div>
+      <div class="api-row3d"><span class="method-chip m-post">POST</span><div><div class="ep-code">/api/ai/quiz/submit</div><div class="ep-desc">Quiz → AI recommendations (Top 10)</div></div></div>
+      <div class="api-row3d"><span class="method-chip m-post">POST</span><div><div class="ep-code">/api/ai/chat</div><div class="ep-desc">AI Chatbot + Server-Sent Events streaming</div></div></div>
       <div class="api-row3d"><span class="method-chip m-post">POST</span><div><div class="ep-code">/api/ai/salary-predict</div><div class="ep-desc">توقع الراتب بـ XGBoost ML model</div></div></div>
-      <div class="api-row3d"><span class="method-chip m-get">GET</span><div><div class="ep-code">/api/ai/alternatives/:studentId</div><div class="ep-desc">بدائل مقترحة بناءً على الدرجة والميول</div></div></div>
-      <div class="api-row3d"><span class="method-chip m-get">GET</span><div><div class="ep-code">/api/ai/roadmap/:studentId</div><div class="ep-desc">خريطة طريق مهنية شخصية مخصصة</div></div></div>
-    </div>
-
-    <div class="grid-3">
-      <div class="role-card">
-        <div class="badge3d b-blue" style="margin-bottom:8px;">student</div>
-        <p class="card-p" style="font-size:13px;">Quiz، الكليات، الحفظ، الـ Chatbot، الملف الشخصي، Salary Predictor</p>
-      </div>
-      <div class="role-card">
-        <div class="badge3d b-teal" style="margin-bottom:8px;">parent</div>
-        <p class="card-p" style="font-size:13px;">متابعة الأبناء، Parent Dashboard، الرؤى والتقارير، Notifications</p>
-      </div>
-      <div class="role-card">
-        <div class="badge3d b-amber" style="margin-bottom:8px;">admin</div>
-        <p class="card-p" style="font-size:13px;">إدارة الكليات، Analytics Dashboard، إدارة المستخدمين، AI monitoring</p>
-      </div>
+      <div class="api-row3d"><span class="method-chip m-get">GET</span><div><div class="ep-code">/api/ai/roadmap/:studentId</div><div class="ep-desc">خريطة طريق مهنية شخصية</div></div></div>
     </div>
   </div>
 </div>
@@ -1565,36 +1517,10 @@ body {
   <div class="section">
     <h2 class="section-title">🗄️ Database Architecture</h2>
     <p class="section-desc">PostgreSQL 16 + pgvector + Redis</p>
-
-    <div class="db-block">
-      <div class="db-head">👤 users</div>
-      <table class="db-table"><tr><td class="pk">id (PK)</td><td>UUID</td><td>Primary key</td></tr><tr><td>name</td><td>VARCHAR(100)</td><td>اسم المستخدم</td></tr><tr><td>phone</td><td>VARCHAR(15)</td><td>رقم الموبايل المصري</td></tr><tr><td>email</td><td>VARCHAR(150)</td><td>البريد الإلكتروني</td></tr><tr><td>role</td><td>ENUM(student,parent,admin)</td><td>نوع المستخدم</td></tr><tr><td>governorate</td><td>VARCHAR(50)</td><td>المحافظة (27 محافظة)</td></tr><tr><td>password_hash</td><td>TEXT</td><td>bcrypt hashed password</td></tr><tr><td>created_at</td><td>TIMESTAMP</td><td>تاريخ التسجيل</td></tr></table>
-    </div>
-
-    <div class="db-block">
-      <div class="db-head">🎓 colleges</div>
-      <table class="db-table"><tr><td class="pk">id (PK)</td><td>UUID</td><td></td></tr><tr><td>name_ar</td><td>VARCHAR(200)</td><td>اسم الكلية بالعربي</td></tr><tr><td class="fk">university_id (FK)</td><td>UUID→universities</td><td>الجامعة التابعة لها</td></tr><tr><td>type</td><td>ENUM(gov,private,national)</td><td>حكومي/خاص/أهلي</td></tr><tr><td>min_score</td><td>DECIMAL(5,2)</td><td>درجة القبول الدنيا</td></tr><tr><td>annual_fees</td><td>INTEGER</td><td>المصاريف السنوية بالجنيه</td></tr><tr><td>governorate</td><td>VARCHAR(50)</td><td>موقع الكلية</td></tr><tr><td>employment_rate</td><td>DECIMAL(5,2)</td><td>نسبة التوظيف %</td></tr><tr><td>avg_salary</td><td>INTEGER</td><td>متوسط الراتب بالجنيه</td></tr></table>
-    </div>
-
-    <div class="db-block">
-      <div class="db-head">📝 quiz_sessions</div>
-      <table class="db-table"><tr><td class="pk">id (PK)</td><td>UUID</td><td></td></tr><tr><td class="fk">student_id (FK)</td><td>UUID→users</td><td>الطالب</td></tr><tr><td>answers</td><td>JSONB</td><td>{"q1":"a","q2":"c"...} — 15 سؤال</td></tr><tr><td>personality_type</td><td>VARCHAR(50)</td><td>نوع الشخصية المستنتج</td></tr><tr><td>completed_at</td><td>TIMESTAMP</td><td>وقت الإكمال</td></tr><tr><td>ai_model_version</td><td>VARCHAR(20)</td><td>إصدار النموذج المستخدم</td></tr></table>
-    </div>
-
-    <div class="db-block">
-      <div class="db-head">🤖 ai_recommendations</div>
-      <table class="db-table"><tr><td class="pk">id (PK)</td><td>UUID</td><td></td></tr><tr><td class="fk">student_id (FK)</td><td>UUID→users</td><td></td></tr><tr><td class="fk">college_id (FK)</td><td>UUID→colleges</td><td></td></tr><tr><td class="fk">quiz_session_id (FK)</td><td>UUID→quiz_sessions</td><td></td></tr><tr><td>match_score</td><td>DECIMAL(5,2)</td><td>نسبة التطابق 0-100</td></tr><tr><td>rank</td><td>SMALLINT</td><td>الترتيب 1,2,3...</td></tr><tr><td>reasons</td><td>JSONB</td><td>أسباب التوصية بالعربي</td></tr></table>
-    </div>
-
-    <div class="db-block">
-      <div class="db-head">📊 student_behavior_tracking</div>
-      <table class="db-table"><tr><td class="pk">id (PK)</td><td>UUID</td><td></td></tr><tr><td class="fk">student_id (FK)</td><td>UUID→users</td><td></td></tr><tr><td>event_type</td><td>ENUM(view,save,compare,chat)</td><td>نوع الحدث</td></tr><tr><td>entity_type</td><td>VARCHAR(50)</td><td>college/career/scholarship</td></tr><tr><td>entity_id</td><td>UUID</td><td>المعرف</td></tr><tr><td>metadata</td><td>JSONB</td><td>بيانات إضافية للـ ML</td></tr><tr><td>created_at</td><td>TIMESTAMP</td><td></td></tr></table>
-    </div>
-
-    <div class="db-block">
-      <div class="db-head">💬 chat_logs</div>
-      <table class="db-table"><tr><td class="pk">id (PK)</td><td>UUID</td><td></td></tr><tr><td class="fk">student_id (FK)</td><td>UUID→users</td><td></td></tr><tr><td>role</td><td>ENUM(user,assistant)</td><td>المرسل</td></tr><tr><td>message</td><td>TEXT</td><td>محتوى الرسالة</td></tr><tr><td>tokens_used</td><td>INTEGER</td><td>لتتبع تكاليف OpenAI</td></tr><tr><td>created_at</td><td>TIMESTAMP</td><td></td></tr></table>
-    </div>
+    <div class="db-block"><div class="db-head">👤 users</div><table class="db-table"><tr><td class="pk">id (PK)</td><td>UUID</td><td>Primary key</td></tr><tr><td>name</td><td>VARCHAR(100)</td><td>اسم المستخدم</td></tr><tr><td>phone</td><td>VARCHAR(15)</td><td>رقم الموبايل المصري</td></tr><tr><td>role</td><td>ENUM(student,parent,admin)</td><td>نوع المستخدم</td></tr><tr><td>governorate</td><td>VARCHAR(50)</td><td>المحافظة</td></tr></table></div>
+    <div class="db-block"><div class="db-head">🎓 colleges</div><table class="db-table"><tr><td class="pk">id (PK)</td><td>UUID</td><td></td></tr><tr><td>name_ar</td><td>VARCHAR(200)</td><td>اسم الكلية بالعربي</td></tr><tr><td class="fk">university_id (FK)</td><td>UUID→universities</td><td></td></tr><tr><td>type</td><td>ENUM(gov,private,national)</td><td>حكومي/خاص/أهلي</td></tr><tr><td>min_score</td><td>DECIMAL(5,2)</td><td>درجة القبول الدنيا</td></tr><tr><td>annual_fees</td><td>INTEGER</td><td>المصاريف السنوية</td></tr><tr><td>employment_rate</td><td>DECIMAL(5,2)</td><td>نسبة التوظيف %</td></tr></table></div>
+    <div class="db-block"><div class="db-head">📝 quiz_sessions</div><table class="db-table"><tr><td class="pk">id (PK)</td><td>UUID</td><td></td></tr><tr><td class="fk">student_id (FK)</td><td>UUID→users</td><td></td></tr><tr><td>answers</td><td>JSONB</td><td>إجابات الـ 15 سؤال</td></tr><tr><td>personality_type</td><td>VARCHAR(50)</td><td>نوع الشخصية</td></tr></table></div>
+    <div class="db-block"><div class="db-head">🤖 ai_recommendations</div><table class="db-table"><tr><td class="pk">id (PK)</td><td>UUID</td><td></td></tr><tr><td class="fk">student_id (FK)</td><td>UUID→users</td><td></td></tr><tr><td class="fk">college_id (FK)</td><td>UUID→colleges</td><td></td></tr><tr><td>match_score</td><td>DECIMAL(5,2)</td><td>نسبة التطابق 0-100</td></tr><tr><td>reasons</td><td>JSONB</td><td>أسباب التوصية بالعربي</td></tr></table></div>
   </div>
 </div>
 
@@ -1602,76 +1528,12 @@ body {
 <div id="page-ai" class="page">
   <div class="section">
     <h2 class="section-title">🤖 AI System Design</h2>
-    <p class="section-desc">5 نماذج AI متكاملة لتجربة مخصصة بالكامل</p>
-
-    <div class="ai-block">
-      <div class="ai-block-title">
-        <span class="badge3d b-purple">Model 1</span>
-        AI Recommendation Engine
-      </div>
-      <p class="card-p"><strong style="color:var(--text);">Type:</strong> Hybrid (Content-based + Collaborative Filtering + LLM reranking)</p>
-      <div class="tag-row">
-        <span class="badge3d b-blue">Input: Quiz answers (15 questions)</span>
-        <span class="badge3d b-teal">Input: Academic scores</span>
-        <span class="badge3d b-amber">Input: Behavior data</span>
-        <span class="badge3d b-cyan">Output: Top 10 college matches + scores</span>
-      </div>
-      <p class="card-p" style="margin-top:12px;">Stack: Python FastAPI → Scikit-learn (initial matching) → OpenAI GPT-4o (reranking + Arabic explanation generation)</p>
-      <div class="progress3d" style="margin-top:14px;"><div class="progress-fill3d" style="width:82%;"></div></div>
-      <p style="font-size:12px;margin-top:6px;color:var(--text3);">Target accuracy: 82%+ user satisfaction rate</p>
-    </div>
-
-    <div class="ai-block">
-      <div class="ai-block-title">
-        <span class="badge3d b-blue">Model 2</span>
-        AI Chatbot — Arabic NLP
-      </div>
-      <p class="card-p"><strong style="color:var(--text);">Architecture:</strong> RAG (Retrieval Augmented Generation) فوق قاعدة بيانات الكليات المصرية</p>
-      <div class="tag-row">
-        <span class="badge3d b-cyan">LLM: GPT-4o / Gemini 1.5</span>
-        <span class="badge3d b-blue">Vector DB: pgvector (embeddings)</span>
-        <span class="badge3d b-teal">Arabic NLP preprocessing</span>
-        <span class="badge3d b-amber">Context: Student profile + chat history</span>
-      </div>
-      <p class="card-p" style="margin-top:12px;">Fallback: خط دعم بشري لو AI مش عارف يجاوب. Context window: آخر 20 رسالة. Streaming via Server-Sent Events.</p>
-    </div>
-
-    <div class="ai-block">
-      <div class="ai-block-title">
-        <span class="badge3d b-amber">Model 3</span>
-        Salary Predictor
-      </div>
-      <p class="card-p"><strong style="color:var(--text);">Type:</strong> Gradient Boosting Regressor (XGBoost) trained on Egyptian job market data</p>
-      <div class="tag-row">
-        <span class="badge3d b-blue">Features: college_type, specialization, governorate, years_exp</span>
-        <span class="badge3d b-teal">Output: salary_min, salary_max, salary_median</span>
-        <span class="badge3d b-amber">Data: LinkedIn + Forasna.com (quarterly update)</span>
-      </div>
-      <div class="progress3d" style="margin-top:14px;"><div class="progress-fill3d" style="width:76%;background:linear-gradient(to left,var(--amber),#ffca28);"></div></div>
-      <p style="font-size:12px;margin-top:6px;color:var(--text3);">RMSE target: ±15% salary range accuracy</p>
-    </div>
-
-    <div class="ai-block">
-      <div class="ai-block-title">
-        <span class="badge3d b-teal">Model 4</span>
-        Alternative Recommendations
-      </div>
-      <p class="card-p">Rule-based + ML: لو الطالب مش واصل للدرجة المطلوبة، بنحسب similarity score بين الكليات بناءً على subject areas، career outcomes، fee ranges ونقترح بدائل مناسبة بشرح سبب كل توصية.</p>
-    </div>
-
-    <div class="ai-block">
-      <div class="ai-block-title">
-        <span class="badge3d b-cyan">Model 5</span>
-        Behavior Tracking + Personalization
-      </div>
-      <p class="card-p">Real-time event tracking → Redis queue → async processing → تحديث user preference vector → إعادة ترتيب التوصيات. كل click وview وsave بيأثر على نتائج التوصيات في الوقت الفعلي.</p>
-      <div class="tag-row">
-        <span class="tech-pill">Redis Streams</span>
-        <span class="tech-pill">Bull.js Queue</span>
-        <span class="tech-pill">pgvector embeddings</span>
-        <span class="tech-pill">Real-time updates</span>
-      </div>
-    </div>
+    <p class="section-desc">5 نماذج AI متكاملة</p>
+    <div class="ai-block"><div class="ai-block-title"><span class="badge3d b-purple">Model 1</span>AI Recommendation Engine</div><p class="card-p">Hybrid (Content-based + Collaborative Filtering + LLM reranking). Stack: Python FastAPI → Scikit-learn → GPT-4o reranking.</p><div class="progress3d"><div class="progress-fill3d" style="width:82%;"></div></div><p style="font-size:12px;margin-top:6px;color:var(--text3);">Target accuracy: 82%+ user satisfaction rate</p></div>
+    <div class="ai-block"><div class="ai-block-title"><span class="badge3d b-blue">Model 2</span>AI Chatbot — Arabic NLP</div><p class="card-p">RAG (Retrieval Augmented Generation) فوق قاعدة بيانات الكليات المصرية. LLM: GPT-4o. Vector DB: pgvector. Streaming via Server-Sent Events.</p></div>
+    <div class="ai-block"><div class="ai-block-title"><span class="badge3d b-amber">Model 3</span>Salary Predictor</div><p class="card-p">Gradient Boosting Regressor (XGBoost) trained on Egyptian job market data. Features: college_type, specialization, governorate, years_exp.</p><div class="progress3d"><div class="progress-fill3d" style="width:76%;background:linear-gradient(to left,var(--amber),#ffca28);"></div></div></div>
+    <div class="ai-block"><div class="ai-block-title"><span class="badge3d b-teal">Model 4</span>Alternative Recommendations</div><p class="card-p">Rule-based + ML: similarity score بين الكليات بناءً على subject areas، career outcomes، fee ranges.</p></div>
+    <div class="ai-block"><div class="ai-block-title"><span class="badge3d b-cyan">Model 5</span>Behavior Tracking</div><p class="card-p">Real-time event tracking → Redis queue → async processing → تحديث user preference vector → إعادة ترتيب التوصيات.</p></div>
   </div>
 </div>
 
@@ -1680,62 +1542,17 @@ body {
   <div class="section">
     <h2 class="section-title">📊 Smart Analytics Dashboard</h2>
     <p class="section-desc">لوحة تحكم متكاملة لمتابعة أداء المنصة</p>
-
     <div class="grid-4" style="margin-bottom:40px;">
-      <div class="stat-card s-blue">
-        <div class="stat-icon ci-blue">👥</div>
-        <div class="stat-value">12,450</div>
-        <div class="stat-label">إجمالي الطلاب المسجلين</div>
-      </div>
-      <div class="stat-card s-teal">
-        <div class="stat-icon ci-teal">📝</div>
-        <div class="stat-value">87%</div>
-        <div class="stat-label">معدل إتمام الـ Quiz</div>
-      </div>
-      <div class="stat-card s-amber">
-        <div class="stat-icon ci-amber">🎓</div>
-        <div class="stat-value">3.2</div>
-        <div class="stat-label">متوسط الكليات المحفوظة/طالب</div>
-      </div>
-      <div class="stat-card s-red">
-        <div class="stat-icon ci-red">💬</div>
-        <div class="stat-value">4.1m</div>
-        <div class="stat-label">رسايل AI Chatbot</div>
-      </div>
+      <div class="stat-card s-blue"><div class="stat-icon ci-blue">👥</div><div class="stat-value">12,450</div><div class="stat-label">إجمالي الطلاب المسجلين</div></div>
+      <div class="stat-card s-teal"><div class="stat-icon ci-teal">📝</div><div class="stat-value">87%</div><div class="stat-label">معدل إتمام الـ Quiz</div></div>
+      <div class="stat-card s-amber"><div class="stat-icon ci-amber">🎓</div><div class="stat-value">3.2</div><div class="stat-label">متوسط الكليات المحفوظة/طالب</div></div>
+      <div class="stat-card s-red"><div class="stat-icon ci-red">💬</div><div class="stat-value">4.1m</div><div class="stat-label">رسايل AI Chatbot</div></div>
     </div>
-
-    <h2 class="section-title" style="font-size:20px;">📈 Dashboard Sections</h2>
-    <div class="grid-2" style="margin-bottom:32px;">
-      <div class="card3d">
-        <div class="badge3d b-blue" style="margin-bottom:12px;">Student Interests Analytics</div>
-        <h3 class="card-h3">توزيع الاهتمامات</h3>
-        <p class="card-p">Pie chart: توزيع الطلاب على الكليات (هندسة 32%، طب 28%، تجارة 18%...) مع drill-down بالمحافظة والجنس والسنة.</p>
-      </div>
-      <div class="card3d">
-        <div class="badge3d b-teal" style="margin-bottom:12px;">Regional Trends</div>
-        <h3 class="card-h3">Heatmap مصر</h3>
-        <p class="card-p">Heatmap على خريطة مصر يوضح أكتر الكليات بحثاً في كل محافظة + density indicators + YoY comparison.</p>
-      </div>
-      <div class="card3d">
-        <div class="badge3d b-amber" style="margin-bottom:12px;">Salary Trends</div>
-        <h3 class="card-h3">تحليل الرواتب</h3>
-        <p class="card-p">Line chart لمتوسط الرواتب بالتخصص على مدار السنين + YoY comparison + prediction للـ 3 سنين الجاية.</p>
-      </div>
-      <div class="card3d">
-        <div class="badge3d b-purple" style="margin-bottom:12px;">Conversion Funnel</div>
-        <h3 class="card-h3">Funnel Analysis</h3>
-        <p class="card-p">تسجيل → Quiz → نتائج → تفاصيل كلية → مقارنة → Scholarship — مع drop-off rates وoptimization hints.</p>
-      </div>
-      <div class="card3d">
-        <div class="badge3d b-cyan" style="margin-bottom:12px;">Parent Insights</div>
-        <h3 class="card-h3">بيانات أولياء الأمور</h3>
-        <p class="card-p">أكتر أولياء أمور active، أكتر الكليات اللي بيتابعوا عليها، engagement time analysis بالمقارنة مع الطلاب.</p>
-      </div>
-      <div class="card3d">
-        <div class="badge3d b-red" style="margin-bottom:12px;">AI Performance</div>
-        <h3 class="card-h3">أداء الـ AI</h3>
-        <p class="card-p">AI recommendation accuracy، chatbot satisfaction scores، avg tokens per session، cost tracking per model.</p>
-      </div>
+    <div class="grid-2">
+      <div class="card3d"><div class="badge3d b-blue" style="margin-bottom:12px;">Student Interests</div><h3 class="card-h3">توزيع الاهتمامات</h3><p class="card-p">Pie chart: توزيع الطلاب على الكليات مع drill-down بالمحافظة والجنس والسنة.</p></div>
+      <div class="card3d"><div class="badge3d b-teal" style="margin-bottom:12px;">Regional Trends</div><h3 class="card-h3">Heatmap مصر</h3><p class="card-p">Heatmap على خريطة مصر يوضح أكتر الكليات بحثاً في كل محافظة.</p></div>
+      <div class="card3d"><div class="badge3d b-amber" style="margin-bottom:12px;">Salary Trends</div><h3 class="card-h3">تحليل الرواتب</h3><p class="card-p">Line chart لمتوسط الرواتب بالتخصص على مدار السنين + prediction للـ 3 سنين الجاية.</p></div>
+      <div class="card3d"><div class="badge3d b-red" style="margin-bottom:12px;">AI Performance</div><h3 class="card-h3">أداء الـ AI</h3><p class="card-p">AI recommendation accuracy، chatbot satisfaction scores، avg tokens per session، cost tracking.</p></div>
     </div>
   </div>
 </div>
@@ -1745,77 +1562,14 @@ body {
   <div class="section">
     <h2 class="section-title">🚀 MVP Roadmap</h2>
     <p class="section-desc">خطة تنفيذ 20 أسبوع للوصول للـ MVP</p>
-
-    <div class="phase3d ph1">
-      <div class="phase-header">
-        <div class="phase-dot" style="background:var(--blue);"></div>
-        Phase 1 — Foundation
-        <span class="badge3d b-blue">Weeks 1–4</span>
-      </div>
-      <div class="tl-row"><div class="week-chip">Week 1-2</div><div class="tl-text">Project setup: Next.js + Backend boilerplate، DB schema design، CI/CD pipeline، Design system tokens في Tailwind</div></div>
-      <div class="tl-row"><div class="week-chip">Week 3-4</div><div class="tl-text">Auth flow (Screens 1-5)، User management API، JWT + Refresh tokens، OTP integration (Vodafone API)</div></div>
-    </div>
-
-    <div class="phase3d ph2">
-      <div class="phase-header">
-        <div class="phase-dot" style="background:var(--teal);"></div>
-        Phase 2 — Core Features
-        <span class="badge3d b-teal">Weeks 5–10</span>
-      </div>
-      <div class="tl-row"><div class="week-chip">Week 5-6</div><div class="tl-text">Home Dashboard، University Finder مع filters، College Details، Database seeding (500+ كلية)</div></div>
-      <div class="tl-row"><div class="week-chip">Week 7-8</div><div class="tl-text">AI Quiz (15 questions)، Quiz engine backend، Results screen، Basic recommendation algorithm</div></div>
-      <div class="tl-row"><div class="week-chip">Week 9-10</div><div class="tl-text">Compare Colleges، Saved Colleges، Career Path visualization، Admission Steps guide</div></div>
-    </div>
-
-    <div class="phase3d ph3">
-      <div class="phase-header">
-        <div class="phase-dot" style="background:var(--red);"></div>
-        Phase 3 — AI Features
-        <span class="badge3d b-red">Weeks 11–16</span>
-      </div>
-      <div class="tl-row"><div class="week-chip">Week 11-12</div><div class="tl-text">AI Chatbot (RAG implementation)، Arabic NLP pipeline، Chat interface مع streaming، Context management</div></div>
-      <div class="tl-row"><div class="week-chip">Week 13-14</div><div class="tl-text">Salary Predictor XGBoost model، Alternative Recommendations engine، Learning Roadmap generator</div></div>
-      <div class="tl-row"><div class="week-chip">Week 15-16</div><div class="tl-text">Parent Dashboard، Push Notifications system، Scholarships DB، Support Center + FAQ</div></div>
-    </div>
-
-    <div class="phase3d ph4">
-      <div class="phase-header">
-        <div class="phase-dot" style="background:var(--amber);"></div>
-        Phase 4 — Polish & Launch
-        <span class="badge3d b-amber">Weeks 17–20</span>
-      </div>
-      <div class="tl-row"><div class="week-chip">Week 17-18</div><div class="tl-text">Analytics Dashboard، Performance optimization، RTL QA complete، Bug fixing، User testing (50 طالب)</div></div>
-      <div class="tl-row"><div class="week-chip">Week 19-20</div><div class="tl-text">Beta launch (1,000 طالب)، Feedback collection loop، App Store submission، Marketing campaign launch</div></div>
-    </div>
-
-    <h2 class="section-title" style="font-size:20px;">👥 Team Roles</h2>
-    <div class="grid-3" style="margin-bottom:40px;">
-      <div class="role-card"><div class="badge3d b-blue" style="margin-bottom:8px;">Full-Stack Dev × 2</div><p class="card-p" style="font-size:13px;">Frontend (Next.js) + Backend (Node.js) — Core screens and APIs</p></div>
-      <div class="role-card"><div class="badge3d b-purple" style="margin-bottom:8px;">AI/ML Engineer × 1</div><p class="card-p" style="font-size:13px;">Recommendation engine، Salary predictor، Chatbot RAG implementation</p></div>
-      <div class="role-card"><div class="badge3d b-teal" style="margin-bottom:8px;">UI/UX Designer × 1</div><p class="card-p" style="font-size:13px;">Figma designs، Design system، User testing sessions</p></div>
-      <div class="role-card"><div class="badge3d b-amber" style="margin-bottom:8px;">Product Manager × 1</div><p class="card-p" style="font-size:13px;">Roadmap، User research، Stakeholder management</p></div>
-      <div class="role-card"><div class="badge3d b-cyan" style="margin-bottom:8px;">Data Analyst × 1</div><p class="card-p" style="font-size:13px;">College data collection، Analytics dashboard، Market research</p></div>
-      <div class="role-card"><div class="badge3d b-red" style="margin-bottom:8px;">DevOps × 0.5</div><p class="card-p" style="font-size:13px;">AWS/GCP setup، CI/CD pipeline، Monitoring — part-time</p></div>
-    </div>
-
-    <h2 class="section-title" style="font-size:20px;">💰 Cost & Monetization</h2>
+    <div class="phase3d ph1"><div class="phase-header"><div class="phase-dot" style="background:var(--blue);"></div>Phase 1 — Foundation<span class="badge3d b-blue">Weeks 1–4</span></div><div class="tl-row"><div class="week-chip">Week 1-2</div><div class="tl-text">Project setup: Next.js + Backend boilerplate، DB schema، CI/CD pipeline</div></div><div class="tl-row"><div class="week-chip">Week 3-4</div><div class="tl-text">Auth flow (Screens 1-5)، JWT + Refresh tokens، OTP integration</div></div></div>
+    <div class="phase3d ph2"><div class="phase-header"><div class="phase-dot" style="background:var(--teal);"></div>Phase 2 — Core Features<span class="badge3d b-teal">Weeks 5–10</span></div><div class="tl-row"><div class="week-chip">Week 5-6</div><div class="tl-text">Home Dashboard، University Finder، College Details، Database seeding (500+ كلية)</div></div><div class="tl-row"><div class="week-chip">Week 7-10</div><div class="tl-text">AI Quiz، Compare، Saved، Career Path، Admission Steps</div></div></div>
+    <div class="phase3d ph3"><div class="phase-header"><div class="phase-dot" style="background:var(--red);"></div>Phase 3 — AI Features<span class="badge3d b-red">Weeks 11–16</span></div><div class="tl-row"><div class="week-chip">Week 11-12</div><div class="tl-text">AI Chatbot (RAG)، Arabic NLP، streaming interface</div></div><div class="tl-row"><div class="week-chip">Week 13-16</div><div class="tl-text">Salary Predictor، Alternative Recommendations، Parent Dashboard</div></div></div>
+    <div class="phase3d ph4"><div class="phase-header"><div class="phase-dot" style="background:var(--amber);"></div>Phase 4 — Polish & Launch<span class="badge3d b-amber">Weeks 17–20</span></div><div class="tl-row"><div class="week-chip">Week 17-18</div><div class="tl-text">Analytics Dashboard، Performance optimization، RTL QA، User testing (50 طالب)</div></div><div class="tl-row"><div class="week-chip">Week 19-20</div><div class="tl-text">Beta launch (1,000 طالب)، App Store submission، Marketing campaign</div></div></div>
+    <div class="divider"></div>
     <div class="grid-2">
-      <div class="card3d">
-        <h3 class="card-h3" style="margin-bottom:16px;">Monthly OpEx (Post-Launch)</h3>
-        <div class="cost-row3d"><span>Infrastructure (AWS/GCP)</span><span class="badge3d b-blue">~4,500 EGP</span></div>
-        <div class="cost-row3d"><span>AI API (OpenAI/Gemini)</span><span class="badge3d b-amber">~8,000 EGP</span></div>
-        <div class="cost-row3d"><span>SMS OTP (Vodafone/Etisalat)</span><span class="badge3d b-teal">~2,000 EGP</span></div>
-        <div class="cost-row3d"><span>CDN + Storage (S3)</span><span class="badge3d b-purple">~1,500 EGP</span></div>
-        <div class="cost-row3d"><span>Monitoring + Analytics</span><span class="badge3d b-cyan">~1,000 EGP</span></div>
-        <div class="cost-row3d"><span>Total Monthly OpEx</span><span class="badge3d b-red">~17,000 EGP</span></div>
-      </div>
-      <div class="card3d">
-        <h3 class="card-h3" style="margin-bottom:16px;">Monetization Model</h3>
-        <div class="cost-row3d"><span>🎯 Freemium (B2C)</span><span class="badge3d b-blue">99 EGP/شهر</span></div>
-        <div class="cost-row3d"><span>🏫 B2B Schools</span><span class="badge3d b-teal">2,000 EGP/مدرسة</span></div>
-        <div class="cost-row3d"><span>🎓 University Ads</span><span class="badge3d b-amber">Sponsored slots</span></div>
-        <div class="cost-row3d"><span>📊 Data Insights B2B</span><span class="badge3d b-purple">Annual reports</span></div>
-      </div>
+      <div class="card3d"><h3 class="card-h3" style="margin-bottom:16px;">Monthly OpEx</h3><div class="cost-row3d"><span>Infrastructure (AWS/GCP)</span><span class="badge3d b-blue">~4,500 EGP</span></div><div class="cost-row3d"><span>AI API (OpenAI/Gemini)</span><span class="badge3d b-amber">~8,000 EGP</span></div><div class="cost-row3d"><span>SMS OTP</span><span class="badge3d b-teal">~2,000 EGP</span></div><div class="cost-row3d"><span>Total Monthly OpEx</span><span class="badge3d b-red">~17,000 EGP</span></div></div>
+      <div class="card3d"><h3 class="card-h3" style="margin-bottom:16px;">Monetization</h3><div class="cost-row3d"><span>🎯 Freemium (B2C)</span><span class="badge3d b-blue">99 EGP/شهر</span></div><div class="cost-row3d"><span>🏫 B2B Schools</span><span class="badge3d b-teal">2,000 EGP/مدرسة</span></div><div class="cost-row3d"><span>🎓 University Ads</span><span class="badge3d b-amber">Sponsored slots</span></div><div class="cost-row3d"><span>📊 Data Insights B2B</span><span class="badge3d b-purple">Annual reports</span></div></div>
     </div>
   </div>
 </div>
@@ -1825,94 +1579,17 @@ body {
   <div class="section">
     <h2 class="section-title">📈 Scaling Strategy</h2>
     <p class="section-desc">من 0 لـ 1 مليون مستخدم عبر 3 سنوات</p>
-
-    <div class="scale-phase">
-      <div class="year-label">Y1</div>
-      <div class="phase-header" style="margin-bottom:12px;">
-        <span class="badge3d b-blue" style="font-size:13px;">Year 1</span>
-        Egypt MVP — 0 to 50K Users
-      </div>
-      <div class="tag-row">
-        <span class="badge3d b-blue">Single region AWS Cairo</span>
-        <span class="badge3d b-teal">Monolith → microservices ready</span>
-        <span class="badge3d b-amber">Focus: Product-market fit</span>
-        <span class="badge3d b-purple">Target: 50,000 students, 500 schools</span>
-      </div>
-    </div>
-
-    <div class="scale-phase">
-      <div class="year-label">Y2</div>
-      <div class="phase-header" style="margin-bottom:12px;">
-        <span class="badge3d b-teal" style="font-size:13px;">Year 2</span>
-        Egypt Scale — 50K to 500K Users
-      </div>
-      <div class="tag-row">
-        <span class="badge3d b-blue">Microservices split (AI service separate)</span>
-        <span class="badge3d b-teal">Redis cluster + DB read replicas</span>
-        <span class="badge3d b-amber">Mobile app (React Native)</span>
-        <span class="badge3d b-purple">B2B: 2,000+ schools onboarded</span>
-        <span class="badge3d b-cyan">University partnership program</span>
-      </div>
-    </div>
-
-    <div class="scale-phase">
-      <div class="year-label">Y3</div>
-      <div class="phase-header" style="margin-bottom:12px;">
-        <span class="badge3d b-red" style="font-size:13px;">Year 3</span>
-        MENA Expansion — 500K to 1M+ Users
-      </div>
-      <div class="tag-row">
-        <span class="badge3d b-blue">Saudi Arabia (القبول الموحد)</span>
-        <span class="badge3d b-teal">UAE (UCAS equivalent)</span>
-        <span class="badge3d b-amber">Jordan + Morocco</span>
-        <span class="badge3d b-purple">Multi-dialect Arabic NLP</span>
-        <span class="badge3d b-cyan">Local data partnerships</span>
-        <span class="badge3d b-red">Series A target: $3M</span>
-      </div>
-    </div>
-
-    <h2 class="section-title" style="font-size:20px;margin-top:40px;">🏗️ Infrastructure Architecture</h2>
-    <div class="grid-4" style="margin-bottom:40px;">
-      <div class="card3d">
-        <div class="badge3d b-blue" style="margin-bottom:10px;">CDN Layer</div>
-        <p class="card-p" style="font-size:13px;">Cloudflare — static assets، Arabic font serving، DDoS protection، Edge caching</p>
-      </div>
-      <div class="card3d">
-        <div class="badge3d b-teal" style="margin-bottom:10px;">App Layer</div>
-        <p class="card-p" style="font-size:13px;">AWS ECS + Auto-scaling بناءً على Thanaweya Amma season (July peak traffic)</p>
-      </div>
-      <div class="card3d">
-        <div class="badge3d b-amber" style="margin-bottom:10px;">AI Layer</div>
-        <p class="card-p" style="font-size:13px;">Separate AI microservice على GPU instances (AWS g4dn) — scale independently</p>
-      </div>
-      <div class="card3d">
-        <div class="badge3d b-purple" style="margin-bottom:10px;">Data Layer</div>
-        <p class="card-p" style="font-size:13px;">PostgreSQL RDS Multi-AZ + Redis ElastiCache + S3 + pgvector للـ embeddings</p>
-      </div>
-    </div>
-
+    <div class="scale-phase"><div class="year-label">Y1</div><div class="phase-header" style="margin-bottom:12px;"><span class="badge3d b-blue" style="font-size:13px;">Year 1</span>Egypt MVP — 0 to 50K Users</div><div class="tag-row"><span class="badge3d b-blue">Single region AWS Cairo</span><span class="badge3d b-teal">Monolith → microservices ready</span><span class="badge3d b-amber">Focus: Product-market fit</span><span class="badge3d b-purple">Target: 50K students</span></div></div>
+    <div class="scale-phase"><div class="year-label">Y2</div><div class="phase-header" style="margin-bottom:12px;"><span class="badge3d b-teal" style="font-size:13px;">Year 2</span>Egypt Scale — 50K to 500K Users</div><div class="tag-row"><span class="badge3d b-blue">Microservices split</span><span class="badge3d b-teal">Redis cluster + DB read replicas</span><span class="badge3d b-amber">Mobile app (React Native)</span><span class="badge3d b-purple">B2B: 2,000+ schools</span></div></div>
+    <div class="scale-phase"><div class="year-label">Y3</div><div class="phase-header" style="margin-bottom:12px;"><span class="badge3d b-red" style="font-size:13px;">Year 3</span>MENA Expansion — 500K to 1M+ Users</div><div class="tag-row"><span class="badge3d b-blue">Saudi Arabia</span><span class="badge3d b-teal">UAE + Jordan</span><span class="badge3d b-amber">Morocco</span><span class="badge3d b-red">Series A target: $3M</span></div></div>
+    <div class="divider"></div>
     <h2 class="section-title" style="font-size:20px;">📅 Key Milestones</h2>
     <div class="card3d">
-      <div class="milestone-row">
-        <div class="m-month" style="background:rgba(26,107,224,0.15);color:#60a8ff;border:1px solid rgba(26,107,224,0.3);">Month 5</div>
-        <div class="m-text">MVP Launch — 1,000 beta users من طلاب الثانوية العامة 2025 — first real feedback</div>
-      </div>
-      <div class="milestone-row">
-        <div class="m-month" style="background:rgba(14,165,122,0.15);color:#3ed8a8;border:1px solid rgba(14,165,122,0.3);">Month 8</div>
-        <div class="m-text">10,000 users — بداية الـ B2B school partnerships — first revenue streams</div>
-      </div>
-      <div class="milestone-row">
-        <div class="m-month" style="background:rgba(224,165,26,0.15);color:#f5c842;border:1px solid rgba(224,165,26,0.3);">Month 12</div>
-        <div class="m-text">50,000 users — Profitability من Premium + B2B — Seed funding round preparation</div>
-      </div>
-      <div class="milestone-row">
-        <div class="m-month" style="background:rgba(130,80,220,0.15);color:#b89eff;border:1px solid rgba(130,80,220,0.3);">Month 18</div>
-        <div class="m-text">Mobile app launch (React Native)، 200K users، Seed funding round closes</div>
-      </div>
-      <div class="milestone-row">
-        <div class="m-month" style="background:rgba(224,92,26,0.15);color:#ff8a50;border:1px solid rgba(224,92,26,0.3);">Month 30</div>
-        <div class="m-text">MENA expansion begins، 1M+ users across 4 countries، Series A funding: $3M</div>
-      </div>
+      <div class="milestone-row"><div class="m-month" style="background:rgba(26,107,224,0.15);color:#60a8ff;border:1px solid rgba(26,107,224,0.3);">Month 5</div><div class="m-text">MVP Launch — 1,000 beta users — first real feedback</div></div>
+      <div class="milestone-row"><div class="m-month" style="background:rgba(14,165,122,0.15);color:#3ed8a8;border:1px solid rgba(14,165,122,0.3);">Month 8</div><div class="m-text">10,000 users — B2B school partnerships — first revenue</div></div>
+      <div class="milestone-row"><div class="m-month" style="background:rgba(224,165,26,0.15);color:#f5c842;border:1px solid rgba(224,165,26,0.3);">Month 12</div><div class="m-text">50,000 users — Profitability — Seed funding preparation</div></div>
+      <div class="milestone-row"><div class="m-month" style="background:rgba(130,80,220,0.15);color:#b89eff;border:1px solid rgba(130,80,220,0.3);">Month 18</div><div class="m-text">Mobile app launch، 200K users، Seed funding closes</div></div>
+      <div class="milestone-row"><div class="m-month" style="background:rgba(224,92,26,0.15);color:#ff8a50;border:1px solid rgba(224,92,26,0.3);">Month 30</div><div class="m-text">MENA expansion، 1M+ users across 4 countries، Series A: $3M</div></div>
     </div>
   </div>
 </div>
@@ -1947,7 +1624,6 @@ body {
   const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
   camera.position.z = 30;
 
-  // Particle system
   const particleCount = 200;
   const geo = new THREE.BufferGeometry();
   const positions = new Float32Array(particleCount * 3);
@@ -1963,48 +1639,22 @@ body {
   geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
   geo.setAttribute('size', new THREE.BufferAttribute(sizes, 1));
 
-  const mat = new THREE.PointsMaterial({
-    color: 0x1a6be0,
-    size: 0.3,
-    transparent: true,
-    opacity: 0.6,
-    sizeAttenuation: true,
-  });
-
+  const mat = new THREE.PointsMaterial({ color: 0x1a6be0, size: 0.3, transparent: true, opacity: 0.6, sizeAttenuation: true });
   const particles = new THREE.Points(geo, mat);
   scene.add(particles);
 
-  // Floating geometric shapes
   const shapes = [];
-  const shapeGeos = [
-    new THREE.OctahedronGeometry(1.5, 0),
-    new THREE.TetrahedronGeometry(1.2, 0),
-    new THREE.IcosahedronGeometry(1.0, 0),
-  ];
-
-  const wireMat = new THREE.MeshBasicMaterial({
-    color: 0x00c8e8,
-    wireframe: true,
-    transparent: true,
-    opacity: 0.15,
-  });
+  const shapeGeos = [new THREE.OctahedronGeometry(1.5,0), new THREE.TetrahedronGeometry(1.2,0), new THREE.IcosahedronGeometry(1.0,0)];
+  const wireMat = new THREE.MeshBasicMaterial({ color: 0x00c8e8, wireframe: true, transparent: true, opacity: 0.15 });
 
   for (let i = 0; i < 6; i++) {
-    const mesh = new THREE.Mesh(
-      shapeGeos[i % 3],
-      wireMat.clone()
-    );
-    mesh.position.set(
-      (Math.random() - 0.5) * 60,
-      (Math.random() - 0.5) * 40,
-      (Math.random() - 0.5) * 20 - 10
-    );
-    mesh.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, 0);
+    const mesh = new THREE.Mesh(shapeGeos[i % 3], wireMat.clone());
+    mesh.position.set((Math.random()-.5)*60, (Math.random()-.5)*40, (Math.random()-.5)*20-10);
+    mesh.rotation.set(Math.random()*Math.PI, Math.random()*Math.PI, 0);
     shapes.push(mesh);
     scene.add(mesh);
   }
 
-  // Grid plane
   const gridHelper = new THREE.GridHelper(120, 30, 0x1a3a7a, 0x0f1e36);
   gridHelper.position.y = -20;
   gridHelper.material.transparent = true;
@@ -2021,23 +1671,14 @@ body {
   function animate() {
     requestAnimationFrame(animate);
     t += 0.005;
-
     particles.rotation.y = t * 0.05;
     particles.rotation.x = t * 0.02;
-
-    shapes.forEach((s, i) => {
-      s.rotation.x += 0.004 + i * 0.001;
-      s.rotation.y += 0.006 + i * 0.001;
-      s.position.y += Math.sin(t + i) * 0.008;
-    });
-
+    shapes.forEach((s, i) => { s.rotation.x += 0.004+i*.001; s.rotation.y += 0.006+i*.001; s.position.y += Math.sin(t+i)*.008; });
     camera.position.x += (mouseX * 3 - camera.position.x) * 0.02;
     camera.position.y += (-mouseY * 2 - camera.position.y) * 0.02;
     camera.lookAt(scene.position);
-
     renderer.render(scene, camera);
   }
-
   animate();
 
   window.addEventListener('resize', () => {
@@ -2048,27 +1689,51 @@ body {
 })();
 
 // ══════════════ NAVIGATION ══════════════
-const pageMap = {
-  vision:0, screens:1, ux:2, frontend:3, backend:4,
-  database:5, ai:6, dashboard:7, roadmap:8, scaling:9
-};
+const pageMap = { vision:0, screens:1, ux:2, frontend:3, backend:4, database:5, ai:6, dashboard:7, roadmap:8, scaling:9 };
 
 function showPage(id) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.tnav-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.mobile-tnav-btn').forEach(b => b.classList.remove('active'));
+
   document.getElementById('page-' + id).classList.add('active');
-  document.querySelectorAll('.tnav-btn')[pageMap[id]].classList.add('active');
+
+  const idx = pageMap[id];
+  const desktopBtns = document.querySelectorAll('.tnav-btn');
+  const mobileBtns  = document.querySelectorAll('.mobile-tnav-btn');
+  if (desktopBtns[idx]) desktopBtns[idx].classList.add('active');
+  if (mobileBtns[idx])  mobileBtns[idx].classList.add('active');
+
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
+
+// ══════════════ MOBILE NAV ══════════════
+function openMobileNav() {
+  document.getElementById('mobile-nav').classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeMobileNav() {
+  document.getElementById('mobile-nav').classList.remove('open');
+  document.body.style.overflow = '';
+}
+
+// Close on backdrop click
+document.getElementById('mobile-nav').addEventListener('click', function(e) {
+  if (e.target === this) closeMobileNav();
+});
+
+// Close on Escape
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') closeMobileNav();
+});
 
 // ══════════════ 3D CARD MOUSE TRACKING ══════════════
 document.querySelectorAll('.card3d').forEach(card => {
   card.addEventListener('mousemove', (e) => {
     const rect = card.getBoundingClientRect();
-    const x = ((e.clientX - rect.left) / rect.width) * 100;
-    const y = ((e.clientY - rect.top) / rect.height) * 100;
-    card.style.setProperty('--mx', x + '%');
-    card.style.setProperty('--my', y + '%');
+    card.style.setProperty('--mx', ((e.clientX - rect.left) / rect.width * 100) + '%');
+    card.style.setProperty('--my', ((e.clientY - rect.top) / rect.height * 100) + '%');
   });
 });
 </script>
